@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>GARGANTUA [RTX]</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jura:wght@400;600;700&display=swap');
+        
+        body, html { 
+            margin: 0; padding: 0; width: 100vw; height: 100vh; 
+            background: #000; overflow: hidden; 
+            font-family: 'Jura', sans-serif; 
+            user-select: none; color: #fff;
+        }
+
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; cursor: crosshair; }
+        canvas:active { cursor: grabbing; }
+
+        /* --- HUD --- */
+        #hud {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+            display: flex; flex-direction: column; justify-content: space-between;
+            padding: 40px; box-sizing: border-box;
+            box-shadow: inset 0 0 250px rgba(0,0,0,0.9);
+        }
+
+        .top-panels { display: flex; justify-content: space-between; align-items: flex-start; }
+        .bottom-panels { display: flex; justify-content: space-between; align-items: flex-end; }
+        
+        .panel {
+            background: linear-gradient(135deg, rgba(0, 5, 10, 0.6), rgba(0, 15, 25, 0.4));
+            border-left: 2px solid #00ffcc;
+            padding: 20px 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            min-width: 330px;
+        }
+
+        .panel.right { border-left: none; border-right: 2px solid #ff3300; text-align: right; }
+        .panel.experiment { border-left: none; border-right: 2px solid #aa00ff; text-align: right; background: rgba(10, 0, 20, 0.8); }
+
+        h1 { margin: 0 0 5px 0; font-size: 20px; letter-spacing: 5px; font-weight: 700; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
+        .subtitle { font-size: 10px; color: #00ccff; letter-spacing: 3px; margin-bottom: 15px; text-transform: uppercase; }
+
+        .data-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .data-row { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: 1px; color: #aaa; }
+        .data-val { color: #fff; font-weight: 600; text-shadow: 0 0 5px rgba(255,255,255,0.4); font-variant-numeric: tabular-nums; }
+        
+        .red-glow { color: #ff3300; text-shadow: 0 0 10px #ff3300; }
+        .purple-glow { color: #aa00ff; text-shadow: 0 0 10px #aa00ff; }
+
+        .controls { 
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            font-size: 12px; letter-spacing: 3px; color: rgba(255,255,255,0.7); 
+            background: rgba(0,0,0,0.6); padding: 15px 25px; border-radius: 5px;
+            border: 1px solid rgba(255,255,255,0.1); text-align: center; line-height: 2.0;
+        }
+        
+        .flash { animation: flash 0.5s; }
+        @keyframes flash { 0% { background: rgba(255, 255, 255, 0.8); } 100% { background: rgba(10, 0, 20, 0.8); } }
+
+        /* TARGETING HUD */
+        #target-box { position: absolute; width: 60px; height: 60px; transform: translate(-50%, -50%); pointer-events: none; z-index: 20; display: none; }
+        .t-corner { position: absolute; width: 15px; height: 15px; border: 2px solid #00aaff; box-shadow: 0 0 8px #00aaff; }
+        .t-tl { top: 0; left: 0; border-right: none; border-bottom: none; } .t-tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+        .t-bl { bottom: 0; left: 0; border-right: none; border-top: none; } .t-br { bottom: 0; right: 0; border-left: none; border-top: none; }
+        .t-label { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #00aaff; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 5px #00aaff; }
+    </style>
+</head>
+<body>
+
+<div id="target-box">
+    <div class="t-label" id="t-label-text">LOCK: OBJ_1</div>
+    <div class="t-corner t-tl"></div><div class="t-corner t-tr"></div>
+    <div class="t-corner t-bl"></div><div class="t-corner t-br"></div>
+</div>
+
+<div id="hud">
+    <div class="bottom-panels">
+        <div class="panel" id="probe-panel" style="opacity: 0.3;">
+            <h1 style="color: #00aaff;">PROBE DROP</h1>
+            <div class="subtitle">SPAGHETTIFICATION SIM</div>
+            <div class="data-grid">
+                <div class="data-row"><span>DIST TO HORIZON:</span> <span class="data-val" id="p-dist">---</span></div>
+                <div class="data-row"><span>REDSHIFT (z):</span> <span class="data-val" id="p-red">---</span></div>
+            </div>
+        </div>
+
+        <div class="panel experiment" id="exp-panel">
+            <h1 class="purple-glow">ACTIVE EXPERIMENTS</h1>
+            <div class="subtitle" style="color:#ee88ff;">PHYSICS OVERRIDE SUITE</div>
+            <div class="data-grid" style="direction: rtl;">
+                <div class="data-row" style="direction: ltr;"><span>BLANDFORD-ZNAJEK JETS:</span> <span class="data-val" id="exp-jets" style="color:#555;">OFF</span></div>
+                <div class="data-row" style="direction: ltr;"><span>PHOTON SPHERE TRAP:</span> <span class="data-val" id="exp-photon" style="color:#555;">OFF</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <span style="color:#fff;">[ DRAG ]</span> ORBIT &nbsp;&nbsp;|&nbsp;&nbsp; <span style="color:#fff;">[ SCROLL ]</span> ZOOM <br>
+        <span style="color:#00ffcc;">[ SPACEBAR ]</span> DROP PROBE &nbsp;&nbsp;|&nbsp;&nbsp; <span style="color:#ff3300;">[ E ]</span> IGNITE RELATIVISTIC JETS &nbsp;&nbsp;|&nbsp;&nbsp; <span style="color:#aa00ff;">[ F ]</span> FIRE PHOTON RING LASER
+        <span style="color:#00ffcc; font-weight:bold;">[ P ]</span> 2K PHOTO RENDER
+    </div>
+</div>
+
+<canvas id="engine"></canvas>
+
+<script id="vs" type="x-shader/x-vertex">
+    attribute vec2 position;
+    void main() { gl_Position = vec4(position, 0.0, 1.0); }
+</script>
+
+<script id="fs" type="x-shader/x-fragment">
+    precision highp float;
+    
+    uniform vec2 u_res;
+    uniform float u_time;
+    uniform vec3 u_camPos;
+    
+    uniform float u_probeActive;
+    uniform vec3 u_probePos;
+    uniform vec3 u_probeParams;
+    
+    uniform float u_jetPower;   
+    uniform float u_photonActive; 
+    uniform vec3 u_photonPos;
+    uniform float u_photoMode; 
+    uniform float u_camRoll;
+
+    #define MAX_STEPS 20000
+    #define EVENT_HORIZON 1.0
+    #define PHOTON_SPHERE 1.5
+    #define ISCO 2.8
+    #define DISK_OUTER 22.0
+    #define DISK_THICKNESS 0.025 
+
+    // --- ŠUM ---
+    float hash(vec3 p) {
+        p = fract(p * vec3(234.34, 435.21, 789.18));
+        p += dot(p, p.yzx + 19.19);
+        return fract((p.x + p.y) * p.z);
+    }
+    float noise(vec3 p) {
+        vec3 i = floor(p); vec3 f = fract(p);
+        f = f*f*(3.0-2.0*f);
+        return mix(mix(mix(hash(i), hash(i+vec3(1,0,0)), f.x), mix(hash(i+vec3(0,1,0)), hash(i+vec3(1,1,0)), f.x), f.y),
+                   mix(mix(hash(i+vec3(0,0,1)), hash(i+vec3(1,0,1)), f.x), mix(hash(i+vec3(0,1,1)), hash(i+vec3(1,1,1)), f.x), f.y), f.z);
+    }
+    
+    float fbm_high(vec3 p) {
+        float f = 0.0; float amp = 0.5;
+        for(int i = 0; i < 9; i++) { 
+            f += amp * noise(p); p *= 2.0; amp *= 0.5; 
+        }
+        return f;
+    }
+
+    float fbm(vec3 p) {
+        float f = 0.0; float amp = 0.5;
+        for(int i = 0; i < 6; i++) { 
+            f += amp * noise(p); p *= 2.0; amp *= 0.5; 
+        }
+        return f;
+    }
+
+    // Planckian Locus - Termodynamika
+    vec3 getBlackbody(float temp) {
+        vec3 col = vec3(255.0);
+        temp /= 100.0;
+        if(temp <= 66.0) col.r = 255.0;
+        else { col.r = temp - 60.0; col.r = 329.6987 * pow(col.r, -0.1332); }
+        if(temp <= 66.0) { col.g = temp; col.g = 99.47 * log(col.g) - 161.11; }
+        else { col.g = temp - 60.0; col.g = 288.12 * pow(col.g, -0.0755); }
+        if(temp >= 66.0) col.b = 255.0;
+        else if(temp <= 19.0) col.b = 0.0;
+        else { col.b = temp - 10.0; col.b = 138.51 * log(col.b) - 305.04; }
+        return clamp(col / 255.0, 0.0, 1.0);
+    }
+
+    // Vylepšený hluboký vesmír
+    vec3 getCosmos(vec3 dir) {
+        mat3 galRot = mat3(0.866, 0.5, 0.0, -0.5, 0.866, 0.0, 0.0, 0.0, 1.0);
+        vec3 d = galRot * dir;
+        
+        // 1. Mléčná dráha a temná mračna
+        float plane = exp(-abs(d.y) * 4.0); 
+        float darkNebula = fbm(d * 4.0);
+        float dustMask = smoothstep(0.3, 0.8, darkNebula);
+        
+        float glowNebula = fbm(d * 3.0 + vec3(22.0));
+        vec3 galColor = mix(vec3(0.01, 0.03, 0.08), vec3(0.18, 0.07, 0.03), plane * glowNebula);
+        galColor *= (1.0 - dustMask * 0.85 * plane); 
+        
+        // 2. Realistické hvězdy (Více velikostí a teplot)
+        // Jasné, barevné hvězdy (modré až oranžové)
+        float s1 = pow(hash(floor(dir * 700.0)), 1200.0) * 10.0;
+        vec3 starColor1 = mix(vec3(1.0, 0.7, 0.4), vec3(0.5, 0.8, 1.0), hash(floor(dir * 700.0) + 1.0));
+        
+        // Střední, neutrální hvězdy (silně protříděné)
+        float s2 = pow(hash(floor(dir * 1500.0)), 1500.0) * 3.0;
+        
+        // Vzdálený mikroskopický hvězdný prach (skoro úplně vymazaný, aby to nezrnělo)
+        float s3 = pow(hash(floor(dir * 2500.0)), 2200.0) * 1.5;
+        
+        vec3 finalStars = (starColor1 * s1) + vec3(s2) + vec3(s3);
+        
+        // Hvězdy slábnou tam, kde je hustý mezihvězdný prach (realismus)
+        finalStars *= (1.0 - dustMask * 0.6 * plane);
+        
+        return galColor + finalStars;
+    }
+
+    mat3 setCamera(vec3 ro, vec3 ta, float roll) {
+        vec3 cw = normalize(ta - ro);
+        vec3 cp = vec3(0.0, 1.0, 0.0);
+        vec3 cu = normalize(cross(cw, cp));
+        vec3 cv = normalize(cross(cu, cw));
+        
+        // Aplikace naklopení (Roll)
+        float sr = sin(roll);
+        float cr = cos(roll);
+        vec3 cu_rolled = cu * cr + cv * sr;
+        vec3 cv_rolled = cv * cr - cu * sr;
+        
+        return mat3(cu_rolled, cv_rolled, cw);
+    }
+
+    // --- HLAVNÍ VYKRESLOVACÍ FUNKCE (TAA a Dithering) ---
+    vec3 render(vec2 uv, float seed) {
+        vec3 ro = u_camPos;
+        mat3 camMat = setCamera(ro, vec3(0.0), u_camRoll);
+        vec3 rd = camMat * normalize(vec3(uv, 1.6)); 
+
+        vec3 p = ro;
+        vec3 v = rd;
+        
+        // RAY DITHERING: Posune start paprsku pro rozbití pruhů
+        float dither = fract(sin(seed) * 43758.5453);
+        p += v * (0.08 * dither); 
+        
+        vec3 col = vec3(0.0);
+        float transmittance = 1.0;
+        
+        vec3 h_vec = cross(ro, rd);
+        float h2 = dot(h_vec, h_vec);
+
+        for(int i = 0; i < MAX_STEPS; i++) {
+            float r2 = dot(p, p);
+            float r = sqrt(r2);
+            
+            if(r < 1.35) { transmittance = 0.0; break; }
+            if(r > 100.0) { col += transmittance * getCosmos(v); break; }
+
+            vec3 accel = -1.5 * EVENT_HORIZON * h2 * p / (r2 * r2 * r);
+            float distToEq = abs(p.y);
+            
+            float dtMultiplier = u_photoMode > 0.5 ? 0.001 : 0.02;
+            float dt = min(dtMultiplier * r, max(0.0005, distToEq * 0.15));
+
+            v = normalize(v + accel * dt);
+            p += v * dt;
+
+            if(u_probeActive > 0.5) {
+                vec3 toProbe = p - u_probePos;
+                vec3 pDir = normalize(u_probePos);
+                float rProj = dot(toProbe, pDir);
+                vec3 tProj = toProbe - rProj * pDir;
+                float stretch = u_probeParams.x;
+                float distToProbe = sqrt((rProj*rProj)/(stretch*stretch) + dot(tProj,tProj));
+                
+                float redshift = u_probeParams.y;
+                float intensity = u_probeParams.z;
+                vec3 probeColor = mix(vec3(0.2, 0.9, 1.0), vec3(1.0, 0.0, 0.0), clamp(redshift, 0.0, 1.0));
+                probeColor *= exp(-redshift * 1.2); 
+                
+                float glow = exp(-distToProbe * 60.0);
+                if(glow > 0.001) {
+                    col += transmittance * probeColor * intensity * glow * 20.0;
+                    transmittance *= (1.0 - glow * 0.8);
+                }
+            }
+
+            if(u_photonActive > 0.5) {
+                float distToPhoton = length(p - u_photonPos);
+                float pGlow = exp(-distToPhoton * 60.0);
+                if(pGlow > 0.001) {
+                    col += transmittance * vec3(1.0, 0.8, 1.0) * pGlow * 80.0;
+                    transmittance *= (1.0 - pGlow * 0.5);
+                }
+            }
+
+            if(u_jetPower > 0.0) {
+                float jR = length(p.xz);
+                float maxJR = 0.2 + abs(p.y) * 0.08; 
+                if(jR < maxJR && abs(p.y) > EVENT_HORIZON) {
+                    vec3 jDir = normalize(vec3(0.0, sign(p.y), 0.0));
+                    float jDoppler = dot(jDir, v);
+                    float jD = (1.0 + jDoppler * 0.99) / sqrt(1.0 - 0.99*0.99);
+                    float jBeaming = pow(jD, 3.0);
+
+                    float jDens = fbm(vec3(p.xz * 8.0, p.y * 3.0 - sign(p.y) * u_time * 15.0));
+                    jDens *= smoothstep(maxJR, maxJR*0.2, jR) * smoothstep(EVENT_HORIZON, EVENT_HORIZON*2.0, abs(p.y));
+                    
+                    if(jDens > 0.01) {
+                        vec3 jCol = mix(vec3(0.2, 0.5, 1.0), vec3(0.8, 0.2, 1.0), jDens);
+                        float jEmis = jDens * u_jetPower * 80.0 * jBeaming;
+                        float jAbs = exp(-jDens * dt * 5.0 * u_jetPower);
+                        
+                        col += transmittance * jCol * jEmis * (1.0 - jAbs);
+                        transmittance *= jAbs;
+                    }
+                }
+            }
+
+            float dXZ = length(p.xz);
+            float localThickness = DISK_THICKNESS * (1.0 + dXZ * 0.1) * (1.0 + u_jetPower * 0.5);
+
+            if(distToEq < localThickness && dXZ > ISCO && dXZ < DISK_OUTER) {
+                
+                // --- 1. NIČITEL MIKRO-PRSTENCŮ (Domain Warping) ---
+                // Zvlníme prostor! Rádius už není dokonalé číslo, ale hrbolatá mapa.
+                // Hmota se díky tomu pohybuje v chaotických elipsách, ne v kruzích.
+                float radialWobble = fbm(p * 2.0) * 0.6; 
+                float warpedR = dXZ + radialWobble; 
+                
+                // Rychlost oběhu se počítá ze zvlněného prostoru
+                float orbitalSpeed = 1.5 / sqrt(warpedR); 
+                float rotAngle = u_time * orbitalSpeed;
+                float s = sin(rotAngle); float c = cos(rotAngle);
+                mat2 rotMat = mat2(c, -s, s, c);
+                
+                // --- 2. VOLUMETRICKÉ MRAKY (Přidána osa Y) ---
+                // Přidáním p.y * 10.0 z toho děláme 3D hmotu, ne 2D placku!
+                vec2 rotatedXZ = rotMat * p.xz;
+                vec3 basePos = vec3(rotatedXZ.x * 2.0, p.y * 12.0, rotatedXZ.y * 2.0); 
+                
+                // Lokální turbulence v oblacích
+                float warp = fbm(basePos + vec3(0.0, u_time*0.8, 0.0));
+                vec3 samplePos = basePos + vec3(warp * 2.5);
+                
+                // --- 3. GLOBÁLNÍ MAGNETICKÁ BOUŘE (Breaker) ---
+                float globalRot = u_time * 0.3;
+                mat2 gRot = mat2(cos(globalRot), -sin(globalRot), sin(globalRot), cos(globalRot));
+                // Bouře má také 3D objem (p.y)
+                vec3 breakerPos = vec3(gRot * p.xz * 1.5, p.y * 6.0);
+                float breaker = fbm(breakerPos - vec3(0.0, u_time, 0.0));
+
+                float verticalDensity = exp(-12.0 * (distToEq*distToEq) / (localThickness*localThickness));
+                float radialDensity = smoothstep(DISK_OUTER, 10.0, dXZ) * smoothstep(ISCO, ISCO + 0.3, dXZ);
+                
+                // --- 4. FINÁLNÍ TVAR PLAZMY ---
+                // Opustili jsme fbm_high (které dělalo ty tenké drážky) 
+                // a použili jemnější fbm s warp deformací.
+                float rawNoise = fbm(samplePos + radialWobble * 2.0); 
+                // Vynásobením breakerem tvoříme "chuchvalce" a trhliny
+                float gasStructure = smoothstep(0.15, 0.85, rawNoise * (breaker * 2.2)); 
+                
+                float density = gasStructure * verticalDensity * radialDensity;
+
+                if(density > 0.0001) { // Sníženo z 0.001, abychom chytali i tenkou mlhu
+                    vec3 orbitDir = normalize(vec3(-p.z, 0.0, p.x));
+                    float doppler = dot(orbitDir, v); 
+
+                    float D = (1.0 + doppler * 0.85) / sqrt(1.0 - 0.85*0.85);
+                    // Beaming necháme, dělá ten krásný efekt asymetrie
+                    float beaming = pow(D, 2.2);
+
+                    float tempK = 9500.0 / pow(dXZ - 1.5, 0.8);
+                    vec3 plasmaColor = getBlackbody(tempK * D);
+                    plasmaColor = mix(plasmaColor, vec3(1.0, 0.2, 0.0), u_jetPower * 0.5);
+
+                    // Snížený emisní výkon, aby se střed tolik nepřepaloval do čisté bílé
+                    float emissionPower = density * 6.0 * beaming; // Původně 12.0
+                    float absorption = exp(-density * dt * 150.0); // Trochu menší absorpce pro "chmýřovitější" plyn
+
+                    col += transmittance * plasmaColor * emissionPower * (1.0 - absorption);
+                    transmittance *= absorption;
+
+                    if(transmittance < 0.001) break; 
+                }
+            }
+        }
+        return col;
+    }
+
+    void main() {
+        vec3 tot = vec3(0.0);
+        
+        // 1 vzorek pro realtime, 16 pro 2K fotorežim
+        int samples = u_photoMode > 0.5 ? 164 : 1; // Můžeš dát klidně 128!
+        
+        // Unikátní základní "seed" pro každý pixel na obrazovce
+        float baseSeed = dot(gl_FragCoord.xy, vec2(12.9898, 78.233));
+
+        for(int i = 0; i < 164; i++) {
+            if(i >= samples) break;
+            
+            // Unikátní seed pro každý z paprsků uvnitř jednoho pixelu
+            float seed = baseSeed + float(i) * 13.13;
+            
+            // TAA JITTERING: Vygenerujeme naprosto náhodný sub-pixelový posun
+            vec2 jitter = vec2(
+                fract(sin(seed) * 43758.5453) - 0.5,
+                fract(cos(seed) * 43758.5453) - 0.5
+            );
+            
+            // Posun aplikujeme jen ve fotorežimu
+            vec2 currentOffset = (u_photoMode > 0.5) ? jitter * 1.5 : vec2(0.0);
+            vec2 uv = (gl_FragCoord.xy + currentOffset - 0.5 * u_res) / u_res.y;
+            
+            tot += render(uv, seed);
+        }
+        tot /= float(samples);
+
+        float exposure = smoothstep(2.0, 15.0, length(u_camPos)) * 1.8 + 0.1;
+        tot *= exposure;
+
+        vec3 a = tot * (tot + 0.0245786) - 0.000090537;
+        vec3 b = tot * (0.983729 * tot + 0.4329510) + 0.238081;
+        tot = a / b;
+        
+        vec2 center_uv = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y;
+        float dist = length(center_uv);
+        
+        // Vinětace (ztmavení okrajů objektivu)
+        tot *= smoothstep(1.5, 0.4, dist);
+
+        // --- FILMOVÁ ŠPÍNA A GRADING ---
+        // 1. Filmové zrno (odbourává plastický vzhled a slévání barev)
+        float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + u_time) * 43758.5453);
+        tot -= (grain * 0.04); // Jemné zrno přes celý obraz
+        
+        // 2. Kontrastní křivka (prohloubení stínů)
+        tot = smoothstep(0.02, 1.05, tot);
+
+        // 3. Color Grading (lehce oteplíme světla do zlatova a stíny zchladíme)
+        vec3 warm = vec3(1.05, 0.95, 0.85); // Zlatavá
+        vec3 cool = vec3(0.85, 0.90, 1.05); // Chladná
+        float lum = dot(tot, vec3(0.333));
+        tot *= mix(cool, warm, lum);
+
+        gl_FragColor = vec4(clamp(tot, 0.0, 1.0), 1.0);
+    }
+</script>
+
+<script>
+    const canvas = document.getElementById('engine');
+    const gl = canvas.getContext('webgl', { antialias: true, depth: false, powerPreference: "high-performance", preserveDrawingBuffer: true });
+    // --- RENDER MÓD PROMĚNNÉ ---
+    let isRendering = false;
+    let renderFrame = 0;
+    const MAX_RENDER_FRAMES = 3000; // Počet snímků. Pro RTX 4070 můžeš zkusit klidně 3000 pro absolutní dokonalost.
+    let frozenTime = 0;
+    
+    // Vytvoření vizuálního upozornění (Loading Bar)
+    const renderUI = document.createElement('div');
+    renderUI.style = "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#00ffcc; font-size:24px; font-weight:bold; letter-spacing:5px; display:none; z-index:100; text-shadow: 0 0 20px #00ffcc; background: rgba(0,20,30,0.8); padding: 30px; border: 2px solid #00ffcc; border-radius: 10px; pointer-events: none;";
+    document.body.appendChild(renderUI);
+
+    function initShader(gl, type, src) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error("SHADER FATAL:", gl.getShaderInfoLog(s));
+        return s;
+    }
+
+    const prog = gl.createProgram();
+    gl.attachShader(prog, initShader(gl, gl.VERTEX_SHADER, document.getElementById('vs').text));
+    gl.attachShader(prog, initShader(gl, gl.FRAGMENT_SHADER, document.getElementById('fs').text));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const quad = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+    const pLoc = gl.getAttribLocation(prog, "position");
+    gl.enableVertexAttribArray(pLoc);
+    gl.vertexAttribPointer(pLoc, 2, gl.FLOAT, false, 0, 0);
+
+    const uRes = gl.getUniformLocation(prog, "u_res");
+    const uTime = gl.getUniformLocation(prog, "u_time");
+    const uCamPos = gl.getUniformLocation(prog, "u_camPos");
+    
+    const uProbeActive = gl.getUniformLocation(prog, "u_probeActive");
+    const uProbePos = gl.getUniformLocation(prog, "u_probePos");
+    const uProbeParams = gl.getUniformLocation(prog, "u_probeParams");
+    
+    const uJetPower = gl.getUniformLocation(prog, "u_jetPower");
+    const uPhotonActive = gl.getUniformLocation(prog, "u_photonActive");
+    const uPhotonPos = gl.getUniformLocation(prog, "u_photonPos");
+    const uPhotoMode = gl.getUniformLocation(prog, "u_photoMode"); // <-- NOVÉ
+    const uCamRoll = gl.getUniformLocation(prog, "u_camRoll"); // <-- NOVÉ
+    let camRoll = -0.15; // Výchozí mírné filmové naklopení (cca -8 stupňů)
+    // --- PHOTO MÓD PROMĚNNÉ ---
+    let isPhoto = false;
+    let photoX = 0, photoY = 0;
+    const TILE_SIZE = 128; // Počítáme po malých částech, aby nezkolabovalo GPU
+    const PHOTO_W = 3840, PHOTO_H = 2160; // 4K UHD
+
+    let camRadius = 22.0, camTheta = 0.5, camPhi = 0.2;  
+    let isDragging = false, prevX = 0, prevY = 0;
+
+    canvas.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+    window.addEventListener('mouseleave', () => { isDragging = false; });
+    canvas.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        camTheta -= (e.clientX - prevX) * 0.005;
+        camPhi += (e.clientY - prevY) * 0.005;
+        camPhi = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, camPhi));
+        prevX = e.clientX; prevY = e.clientY;
+    });
+    // Odemčeno na 44.0 AU pro vzdálené pozorování
+    canvas.addEventListener('wheel', e => { camRadius = Math.max(2.0, Math.min(camRadius + e.deltaY * 0.015, 44.0)); });
+
+    let probe = { active: false, r: 0, theta: 0, phi: 0, L: 0 };
+    let jetPower = 0.0, jetTarget = 0.0;
+    let photon = { active: false, r: 1.5, theta: 0 }; 
+
+    const expPanel = document.getElementById('exp-panel');
+    const probePanel = document.getElementById('probe-panel');
+    const targetBox = document.getElementById('target-box');
+    const tLabel = document.getElementById('t-label-text');
+
+    window.addEventListener('keydown', (e) => {
+        if(e.code === 'Space' && !probe.active) {
+            probe.active = true;
+            probe.r = Math.max(camRadius - 2.0, 1.5);     
+            probe.theta = camTheta; probe.phi = camPhi;
+            probe.L = 0.3 * Math.sqrt(probe.r); 
+            probePanel.style.opacity = 1;
+            probePanel.classList.add('flash'); setTimeout(() => probePanel.classList.remove('flash'), 500);
+        }
+        if(e.code === 'KeyE') {
+            jetTarget = jetTarget > 0.0 ? 0.0 : 1.0;
+            expPanel.classList.add('flash'); setTimeout(() => expPanel.classList.remove('flash'), 500);
+            const jEl = document.getElementById('exp-jets');
+            if(jetTarget > 0) { jEl.innerText = "ACTIVE (0.99c)"; jEl.style.color = "#ff3300"; jEl.style.textShadow = "0 0 10px #ff3300"; }
+            else { jEl.innerText = "OFF"; jEl.style.color = "#555"; jEl.style.textShadow = "none"; }
+        }
+        if(e.code === 'KeyF' && !photon.active) {
+            photon.active = true;
+            photon.theta = camTheta; 
+            expPanel.classList.add('flash'); setTimeout(() => expPanel.classList.remove('flash'), 500);
+            const pEl = document.getElementById('exp-photon');
+            pEl.innerText = "TRAPPED IN ORBIT"; pEl.style.color = "#aa00ff"; pEl.style.textShadow = "0 0 10px #aa00ff";
+        }
+        if(e.code === 'KeyQ') { camRoll -= 0.05; } // Nakloní doleva
+        if(e.code === 'KeyR') { camRoll += 0.05; } // Nakloní doprava
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if(e.code === 'KeyP' && !isPhoto) {
+            isPhoto = true;
+            photoX = 0; photoY = 0;
+            renderUI.style.display = 'block';
+            renderUI.innerText = "INITIALIZING 2K RENDER...";
+            frozenTime = (performance.now() - startTime) * 0.001; // Zmrazí čas vesmíru
+
+            // Nastavení pro fotorežim
+            canvas.width = PHOTO_W;
+            canvas.height = PHOTO_H;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.clearColor(0, 0, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.enable(gl.SCISSOR_TEST); // Extrémně důležité pro dlaždicový render!
+        }
+    });
+
+    let startTime = performance.now();
+    let lastTime = startTime;
+
+    function frame(time) {
+        let dtMs = time - lastTime;
+        lastTime = time;
+
+        let camX = camRadius * Math.cos(camPhi) * Math.sin(camTheta);
+        let camY = camRadius * Math.sin(camPhi);
+        let camZ = camRadius * Math.cos(camPhi) * Math.cos(camTheta);
+
+        jetPower += (jetTarget - jetPower) * 0.02;
+        
+        // Fyzika oběhu a proby (bude stát, pokud je isPhoto true)
+        let simTime = isPhoto ? frozenTime : (time - startTime) * 0.00015;
+
+        if(!isPhoto) {
+            // Jen v realtime režimu počítáme aktivní experimenty a pohyb
+            if(photon.active) {
+                photon.theta += 0.05; 
+                if(Math.random() < 0.002) { 
+                    photon.active = false; 
+                    const pEl = document.getElementById('exp-photon');
+                    pEl.innerText = "DECAYED"; pEl.style.color = "#555"; pEl.style.textShadow = "none";
+                }
+            }
+            if(probe.active) {
+                let rs = 1.0;
+                let f = (1.0 - rs / probe.r); 
+                let dtCoord = 0.005; 
+                probe.r += -f * Math.sqrt(rs / probe.r) * dtCoord;
+                probe.theta += (probe.L / (probe.r * probe.r)) * f * dtCoord;
+                if (probe.r <= rs + 0.005) { probe.r = rs + 0.005; }
+                
+                let intensity = Math.max(0.0, f);
+                if(intensity < 0.01 && probe.r < 1.02) {
+                    setTimeout(() => { probe.active = false; probePanel.style.opacity = 0.3; targetBox.style.display = 'none'; }, 2000);
+                }
+            }
+        }
+
+        // --- NASTAVENÍ UNIFOREM ---
+        gl.uniform3f(uCamPos, camX, camY, camZ);
+        gl.uniform1f(uTime, simTime);
+        gl.uniform1f(uJetPower, jetPower);
+        gl.uniform1f(uCamRoll, camRoll);
+        
+        if(photon.active) {
+            gl.uniform1f(uPhotonActive, 1.0);
+            gl.uniform3f(uPhotonPos, photon.r * Math.sin(photon.theta), 0.0, photon.r * Math.cos(photon.theta));
+        } else {
+            gl.uniform1f(uPhotonActive, 0.0);
+        }
+
+        let targetWorldPos = null;
+        if(probe.active) {
+            let rs = 1.0;
+            let f = (1.0 - rs / probe.r); 
+            let stretch = 1.0 + Math.pow(rs / probe.r, 4.0) * 150.0;
+            let redshift = (1.0 / Math.sqrt(Math.max(0.001, f))) - 1.0;
+            let intensity = Math.max(0.0, f);
+            let px = probe.r * Math.cos(probe.phi) * Math.sin(probe.theta);
+            let py = probe.r * Math.sin(probe.phi);
+            let pz = probe.r * Math.cos(probe.phi) * Math.cos(probe.theta);
+            targetWorldPos = {x: px, y: py, z: pz}; 
+
+            gl.uniform1f(uProbeActive, 1.0);
+            gl.uniform3f(uProbePos, px, py, pz);
+            gl.uniform3f(uProbeParams, stretch, redshift, intensity);
+
+            if(!isPhoto) {
+                document.getElementById('p-dist').innerText = (probe.r - rs).toFixed(4) + " Rs";
+                let redEl = document.getElementById('p-red');
+                redEl.innerText = redshift.toFixed(2);
+                if(redshift > 2.0) redEl.style.color = "#ff3300"; else redEl.style.color = "#fff";
+            }
+        } else {
+            gl.uniform1f(uProbeActive, 0.0);
+            if(!isPhoto) {
+                document.getElementById('p-dist').innerText = "---";
+                document.getElementById('p-red').innerText = "---";
+                document.getElementById('p-red').style.color = "#aaa";
+            }
+        }
+
+        // HUD pro zamerovani sondy v realtime
+        if(!isPhoto && targetWorldPos) {
+            // HUD logika zůstává stejná
+            let cwX = -camX, cwY = -camY, cwZ = -camZ;
+            let lenW = Math.sqrt(cwX*cwX + cwY*cwY + cwZ*cwZ); cwX/=lenW; cwY/=lenW; cwZ/=lenW;
+            let cpX = 0, cpY = 1, cpZ = 0;
+            let cuX = cwY*cpZ - cwZ*cpY, cuY = cwZ*cpX - cwX*cpZ, cuZ = cwX*cpY - cwY*cpX;
+            let lenU = Math.sqrt(cuX*cuX + cuY*cuY + cuZ*cuZ); cuX/=lenU; cuY/=lenU; cuZ/=lenU;
+            let cvX = cuY*cwZ - cuZ*cwY, cvY = cuZ*cwX - cuX*cwZ, cvZ = cuX*cwY - cuY*cwX;
+            let vx = targetWorldPos.x - camX, vy = targetWorldPos.y - camY, vz = targetWorldPos.z - camZ;
+            let lz = vx*cwX + vy*cwY + vz*cwZ;
+            
+            if (lz > 0) {
+                let lx = vx*cuX + vy*cuY + vz*cuZ; let ly = vx*cvX + vy*cvY + vz*cvZ;
+                let uvX = 1.6 * lx / lz; let uvY = 1.6 * ly / lz;
+                let screenX = uvX * canvas.height + 0.5 * canvas.width;
+                let screenY = canvas.height - (uvY * canvas.height + 0.5 * canvas.height);
+                targetBox.style.display = 'block';
+                targetBox.style.left = screenX + 'px'; targetBox.style.top = screenY + 'px';
+                document.getElementById('t-label-text').innerText = "LOCK: PROBE_1";
+            } else { targetBox.style.display = 'none'; }
+        } else { targetBox.style.display = 'none'; }
+
+
+        // --- VYKRESLOVÁNÍ (REALTIME vs PHOTO) ---
+        if(isPhoto) {
+            gl.uniform1f(uPhotoMode, 1.0);
+            gl.uniform2f(uRes, PHOTO_W, PHOTO_H);
+
+            // Vykreslí jen jednu malou dlaždici na plný výkon
+            gl.scissor(photoX, photoY, TILE_SIZE, TILE_SIZE);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            let totalTiles = Math.ceil(PHOTO_W / TILE_SIZE) * Math.ceil(PHOTO_H / TILE_SIZE);
+            let currentTile = Math.floor(photoY / TILE_SIZE) * Math.ceil(PHOTO_W / TILE_SIZE) + Math.floor(photoX / TILE_SIZE) + 1;
+            let percent = ((currentTile / totalTiles) * 100).toFixed(1);
+            
+            renderUI.innerText = `[ RTX KERNEL ] RENDERING 2K: ${percent}%`;
+
+            photoX += TILE_SIZE;
+            if(photoX >= PHOTO_W) {
+                photoX = 0;
+                photoY += TILE_SIZE;
+            }
+
+            if(photoY >= PHOTO_H) {
+                gl.disable(gl.SCISSOR_TEST);
+                renderUI.innerText = "RENDER COMPLETE. SAVING...";
+
+                // Uložení se musí provést IHNED, než zmenšíme canvas!
+                const link = document.createElement('a');
+                link.download = `GARGANTUA_2K_${Date.now()}.png`;
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+
+                // Až po uložení vrátíme vesmír do normálu
+                isPhoto = false;
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
+                renderUI.style.display = 'none';
+                
+                // Srovnání času po rozmrazení
+                startTime = performance.now() - frozenTime * 1000;
+            }
+        } else {
+            // Normální rychlý chod
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.uniform1f(uPhotoMode, 0.0);
+            gl.uniform2f(uRes, canvas.width, canvas.height);
+            
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+</script>
+</body>
+</html>
