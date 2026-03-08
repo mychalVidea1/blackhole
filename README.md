@@ -1,4 +1,4 @@
-# 1. BlackHoleSim.html (GARGANTUA [RTX])
+# 1. BlackHoleSim.html
 Tato verze je zaměřená na uživatelskou interaktivitu a vizualizaci různých teoretických jevů. Obsahuje ovládací panel s experimenty pro testování chování hmoty v extrémní gravitaci.
 
 Klíčové funkce:
@@ -20,7 +20,7 @@ F: Vystřelení fotonu
 P: Spuštění 4K renderu
 Q / R: Náklon kamery (Roll)
 
-# 2. BLACKHOLE SIM - CINEMATIC.html (GARGANTUA [CINE-RENDERER])
+# 2. BLACKHOLE SIM - CINEMATIC.html
 Tato verze je ořezaná o dodatečné "herní" experimenty a plně se soustředí na vizuální čistotu a extrémně stabilní renderování velkých pláten. Je optimalizovaná pro tvorbu tapet a filmových snímků.
 
 Klíčové funkce:
